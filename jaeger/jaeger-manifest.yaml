@@ -1,0 +1,70 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jaeger
+  labels:
+    app: jaeger
+spec:
+  rules:
+    - host: "*.jaeger.sslip.io"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jaeger
+                port:
+                  name: jaeger-ui-port
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  labels:
+    app: jaeger
+spec:
+  ports:
+    - name: jaeger-ag-port
+      port: 6831
+      protocol: UDP
+      targetPort: 6831
+    - name: jaeger-ui-port
+      port: 16686
+      targetPort: 16686
+  selector:
+    app: jaeger
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  labels:
+    app: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: k3d-registry.localhost:12345/jaegertracing/all-in-one:1.31
+          resources:
+            limits:
+              memory: "128Mi"
+          ports:
+            - containerPort: 5775
+              protocol: UDP
+            - containerPort: 6831
+              protocol: UDP
+            - containerPort: 6832
+              protocol: UDP
+            - containerPort: 5778
+            - containerPort: 16686
+            - containerPort: 14268
+

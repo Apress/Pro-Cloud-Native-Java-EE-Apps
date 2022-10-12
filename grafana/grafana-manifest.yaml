@@ -1,0 +1,77 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  rules:
+    - host: "*.grafana.sslip.io"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  name: grafana-port
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  ports:
+    - name: grafana-port
+      port: 3000
+      targetPort: 3000
+  selector:
+    app: grafana
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: k3d-registry.localhost:12345/grafana/grafana-oss:8.4.4
+          resources:
+            limits:
+              memory: "128Mi"
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+          volumeMounts:
+            - name: grafana-config
+              subPath: datasource.yaml
+              mountPath: /etc/grafana/provisioning/datasources/datasource.yaml
+            - name: grafana-config
+              subPath: dashboard.yaml
+              mountPath: /etc/grafana/provisioning/dashboards/dashboard.yaml
+            - name: grafana-config
+              subPath: liberty-dashboard.json
+              mountPath: /etc/grafana/provisioning/dashboards/liberty-dashboard.json
+            - name: grafana-config
+              subPath: wallet-dashboard.json
+              mountPath: /etc/grafana/provisioning/dashboards/wallet-dashboard.json
+      volumes:
+        - name: grafana-config
+          configMap:
+            name: grafana-cm
