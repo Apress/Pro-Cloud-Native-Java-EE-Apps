@@ -1,0 +1,88 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+spec:
+  rules:
+    - host: "*.keycloak.sslip.io"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  name: keycloak-port
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+spec:
+  ports:
+    - name: keycloak-port
+      port: 5050
+      targetPort: 5050
+  selector:
+    app: keycloak
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: k3d-registry.localhost:12345/jwallet/keycloak:latest
+          resources:
+            limits:
+              memory: "128Mi"
+          ports:
+            - containerPort: 5050
+          env:
+            - name: KEYCLOAK_ADMIN
+              value: "admin"
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              value: "admin"
+            - name: KC_DB
+              value: "postgres"
+            - name: KC_DB_URL_HOST
+              value: "postgres"
+            - name: KC_DB_NAME
+              value: "jwallet"
+            - name: KC_DB_USERNAME
+              value: "jwallet"
+            - name: KC_DB_PASSWORD
+              value: "jwallet"
+            - name: KC_HTTP_PORT
+              value: "5050"
+            - name: KC_DB_URL
+              value: "jdbc:postgresql://postgres/jwallet"
+            - name: KC_HOSTNAME
+              value: "keycloak"
+          args: [ "start-dev", "--import-realm" ]
+          volumeMounts:
+            - mountPath: /opt/keycloak/data/import/jwallet-realm.json
+              subPath: jwallet-realm.json
+              name: realm-config
+      volumes:
+        - name: realm-config
+          configMap:
+            name: keycloak-realm-cm
+

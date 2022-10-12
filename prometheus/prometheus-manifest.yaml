@@ -1,0 +1,65 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus
+  labels:
+    app: prometheus
+spec:
+  rules:
+    - host: "*.prometheus.sslip.io"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus
+                port:
+                  name: prom-port
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  labels:
+    app: prometheus
+spec:
+  ports:
+    - name: prom-port
+      port: 9090
+      targetPort: 9090
+  selector:
+    app: prometheus
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: jaeger
+          image: k3d-registry.localhost:12345/prom/prometheus:v2.34.0
+          resources:
+            limits:
+              memory: "128Mi"
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yaml
+              name: prometheus-config
+      volumes:
+        - name: prometheus-config
+          configMap:
+            name: prometheus-cm

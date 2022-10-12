@@ -1,0 +1,48 @@
+version: "3"
+
+services:
+
+  postgres:
+    image: postgres:12.3
+    environment:
+      POSTGRES_USER: jwallet
+      POSTGRES_PASSWORD: jwallet
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:18.0.0
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_NAME: jwallet
+      KC_DB_USERNAME: jwallet
+      KC_DB_PASSWORD: jwallet
+      KC_TRANSACTION_XA_ENABLED: "false"
+      KC_HTTP_PORT: 5002
+      KC_DB_URL: jdbc:postgresql://postgres/jwallet
+      KC_HOSTNAME: keycloak
+    command: [ "start-dev", "--import-realm" ]
+    ports:
+      - "5002:5002"
+    volumes:
+      - ../keycloak/jwallet-realm.json:/opt/keycloak/data/import/jwallet-realm.json:z
+    depends_on:
+      - postgres
+
+  rate:
+    image: jwallet/rate:latest
+    ports:
+      - "3002:3002"
+    environment:
+      WLP_DEBUG_ADDRESS: 4002
+      WLP_DEBUG_REMOTE: "y"
+      WLP_DEBUG_SUSPEND: "n"
+      MP_JWT_VERIFY_PUBLICKEY_LOCATION: http://keycloak:5002/realms/jwallet/protocol/openid-connect/certs
+      MP_JWT_VERIFY_ISSUER: http://keycloak:5002/realms/jwallet
+    depends_on:
+      - postgres
+      - keycloak
+    build:
+      context: .
+      dockerfile: Dockerfile

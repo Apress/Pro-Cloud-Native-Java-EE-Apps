@@ -1,0 +1,130 @@
+version: "3"
+
+volumes:
+  jwallet-data:
+
+services:
+  postgres:
+    image: postgres:12.3
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: jwallet
+      POSTGRES_PASSWORD: jwallet
+    volumes:
+      - jwallet-data:/var/lib/postgresql/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:18.0.0
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_NAME: jwallet
+      KC_DB_USERNAME: jwallet
+      KC_DB_PASSWORD: jwallet
+      KC_TRANSACTION_XA_ENABLED: "false"
+      KC_HTTP_PORT: 5050
+      KC_DB_URL: jdbc:postgresql://postgres/jwallet
+      KC_HOSTNAME: keycloak
+    command: [ "start-dev", "--import-realm" ]
+    ports:
+      - "5050:5050"
+    volumes:
+      - ./keycloak/jwallet-realm.json:/opt/keycloak/data/import/jwallet-realm.json:z
+  
+  wallet:
+    image: jwallet/wallet:latest
+    ports:
+      - "3001:3001"
+      - "4001:4001"
+    environment:
+      WLP_DEBUG_ADDRESS: 4001
+      WLP_DEBUG_REMOTE: "y"
+      WLP_DEBUG_SUSPEND: "n"
+      JAEGER_AGENT_HOST: jaeger
+      JAEGER_AGENT_PORT: 6831
+      JAEGER_SAMPLER_TYPE: const
+      JAEGER_SAMPLER_PARAM: 1
+    healthcheck:
+      test: curl --fail http://localhost:9080/health || exit 1
+    build:
+      context: wallet
+      dockerfile: Dockerfile
+
+  rate:
+    image: jwallet/rate:latest
+    ports:
+      - "3002:3002"
+      - "4002:4002"
+    environment:
+      WLP_DEBUG_ADDRESS: 4002
+      WLP_DEBUG_REMOTE: "y"
+      WLP_DEBUG_SUSPEND: "n"
+      JAEGER_AGENT_HOST: jaeger
+      JAEGER_AGENT_PORT: 6831
+      JAEGER_SAMPLER_TYPE: const
+      JAEGER_SAMPLER_PARAM: 1
+    healthcheck:
+      test: curl --fail http://localhost:9080/health || exit 1
+    build:
+      context: rate
+      dockerfile: Dockerfile
+
+  account:
+    image: jwallet/account:latest
+    ports:
+      - "3003:3003"
+      - "4003:4003"
+    environment:
+      WLP_DEBUG_ADDRESS: 4003
+      WLP_DEBUG_REMOTE: "y"
+      WLP_DEBUG_SUSPEND: "n"
+      JAEGER_AGENT_HOST: jaeger
+      JAEGER_AGENT_PORT: 6831
+      JAEGER_SAMPLER_TYPE: const
+      JAEGER_SAMPLER_PARAM: 1
+    healthcheck:
+      test: curl --fail http://localhost:9080/health || exit 1
+    build:
+      context: account
+      dockerfile: Dockerfile
+
+  jaeger:
+    image: docker.io/jaegertracing/all-in-one:1.31
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"
+      - "14268:14268"
+    depends_on:
+      - wallet
+      - rate
+      - account
+
+  prometheus:
+    image: docker.io/prom/prometheus:v2.34.0
+    user: root
+    volumes:
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - wallet
+      - rate
+      - account
+
+  grafana:
+    image: docker.io/grafana/grafana-oss:8.4.4
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus

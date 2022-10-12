@@ -1,0 +1,63 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  rules:
+    - host: "*.postgres.sslip.io"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: postgres
+                port:
+                  name: postgres-port
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  ports:
+    - name: postgres-port
+      port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: k3d-registry.localhost:12345/jwallet/postgres:latest
+          resources:
+            limits:
+              memory: "128Mi"
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: jwallet
+            - name: POSTGRES_PASSWORD
+              value: jwallet
+
