@@ -1,0 +1,88 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: account
+  labels:
+    app: account
+spec:
+  rules:
+    - host: "*.account.sslip.io"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: account
+                port:
+                  name: account-port
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: account
+  labels:
+    app: account
+spec:
+  ports:
+    - name: account-port
+      port: 3003
+      targetPort: 3003
+  selector:
+    app: account
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: account
+  labels:
+    app: account
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: account
+  template:
+    metadata:
+      labels:
+        app: account
+    spec:
+      containers:
+        - name: account
+          image: k3d-registry.localhost:12345/jwallet/account:latest
+          resources:
+            limits:
+              memory: "512Mi"
+          ports:
+            - containerPort: 9080
+          env:
+            - name: WLP_DEBUG_ADDRESS
+              value: "4003"
+            - name: WLP_DEBUG_REMOTE
+              value: "y"
+            - name: WLP_DEBUG_SUSPEND
+              value: "n"
+            - name: JAEGER_AGENT_HOST
+              value: jaeger
+            - name: JAEGER_AGENT_PORT
+              value: "6831"
+            - name: JAEGER_SAMPLER_TYPE
+              value: const
+            - name: JAEGER_SAMPLER_PARAM
+              value: "1"
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 3003
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 3003
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 10
